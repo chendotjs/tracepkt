@@ -286,7 +286,6 @@ int kretprobe__ipt_do_table(struct pt_regs *ctx)
 {
     return __ipt_do_table_out(ctx);
 }
-/*
 int kprobe__ip6t_do_table(struct pt_regs *ctx, struct sk_buff *skb, const struct nf_hook_state *state, struct xt_table *table)
 {
     return __ipt_do_table_in(ctx, skb, state, table);
@@ -296,4 +295,3 @@ int kretprobe__ip6t_do_table(struct pt_regs *ctx)
 {
     return __ipt_do_table_out(ctx);
 }
-*/

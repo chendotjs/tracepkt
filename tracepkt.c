@@ -8,6 +8,7 @@
 
 #define ROUTE_EVT_IF 1
 #define ROUTE_EVT_IPTABLE 2
+#define FUNNAMESIZ 30
 
 // Event structure
 struct route_evt_t {
@@ -30,6 +31,7 @@ struct route_evt_t {
     u64 hook;
     u64 verdict;
     char tablename[XT_TABLE_MAXNAMELEN];
+    char funcname[FUNNAMESIZ];
 };
 BPF_PERF_OUTPUT(route_evt);
 
@@ -172,10 +174,12 @@ static inline int do_trace_skb(struct route_evt_t *evt, void *ctx, struct sk_buf
     return 0;
 }
 
-static inline int do_trace(void *ctx, struct sk_buff *skb)
+static inline int do_trace(void *ctx, struct sk_buff *skb, char *fnname)
 {
     // Prepare event for userland
     struct route_evt_t evt = {};
+
+    strcpy(evt.funcname,fnname);
 
     // Process packet
     int ret = do_trace_skb(&evt, ctx, skb);
@@ -193,22 +197,22 @@ static inline int do_trace(void *ctx, struct sk_buff *skb)
 
 TRACEPOINT_PROBE(net, netif_rx)
 {
-    return do_trace(args, (struct sk_buff *)args->skbaddr);
+    return do_trace(args, (struct sk_buff *)args->skbaddr,"net:netif_rx");
 }
 
 TRACEPOINT_PROBE(net, net_dev_queue)
 {
-    return do_trace(args, (struct sk_buff *)args->skbaddr);
+    return do_trace(args, (struct sk_buff *)args->skbaddr,"net:net_dev_queue");
 }
 
 TRACEPOINT_PROBE(net, napi_gro_receive_entry)
 {
-    return do_trace(args, (struct sk_buff *)args->skbaddr);
+    return do_trace(args, (struct sk_buff *)args->skbaddr,"net:napi_gro_receive_entry");
 }
 
 TRACEPOINT_PROBE(net, netif_receive_skb_entry)
 {
-    return do_trace(args, (struct sk_buff *)args->skbaddr);
+    return do_trace(args, (struct sk_buff *)args->skbaddr,"net:netif_receive_skb_entry");
 }
 
 /**
@@ -245,7 +249,8 @@ static inline int __ipt_do_table_out(struct pt_regs * ctx)
     struct route_evt_t evt = {
         .flags = ROUTE_EVT_IPTABLE,
     };
-
+    
+    strcpy(evt.funcname,"ipt_do_table");
     // Load packet information
     struct sk_buff *skb = args->skb;
     do_trace_skb(&evt, ctx, skb);
@@ -281,7 +286,7 @@ int kretprobe__ipt_do_table(struct pt_regs *ctx)
 {
     return __ipt_do_table_out(ctx);
 }
-
+/*
 int kprobe__ip6t_do_table(struct pt_regs *ctx, struct sk_buff *skb, const struct nf_hook_state *state, struct xt_table *table)
 {
     return __ipt_do_table_in(ctx, skb, state, table);
@@ -291,3 +296,4 @@ int kretprobe__ip6t_do_table(struct pt_regs *ctx)
 {
     return __ipt_do_table_out(ctx);
 }
+*/

@@ -11,6 +11,8 @@ from struct import pack
 IFNAMSIZ = 16 # uapi/linux/if.h
 XT_TABLE_MAXNAMELEN = 32 # uapi/linux/netfilter/x_tables.h
 
+FUNNAMESIZ = 30
+
 # uapi/linux/netfilter.h
 NF_VERDICT_NAME = [
     'DROP',
@@ -55,6 +57,7 @@ class TestEvt(ct.Structure):
         ("hook",        ct.c_ulonglong),
         ("verdict",     ct.c_ulonglong),
         ("tablename",   ct.c_char * XT_TABLE_MAXNAMELEN),
+        ("funcname",  ct.c_char * FUNNAMESIZ),
     ]
 
 PING_PID="-1"
@@ -108,7 +111,7 @@ def event_printer(cpu, data, size):
         iptables = " %7s.%-12s:%s" % (event.tablename, hook, verdict)
 
     # Print event
-    print "[%12s] %16s %7s %-34s%s" % (event.netns, event.ifname, direction, flow, iptables)
+    print "%-30s [%12s] %16s %7s %-34s%-30s" % (event.funcname,event.netns, event.ifname, direction, flow, iptables)
 
 if __name__ == "__main__":
     # Get arguments
@@ -137,7 +140,7 @@ if __name__ == "__main__":
         )
     PING_PID = ping.pid
 
-    print "%14s %16s %7s %-34s %s" % ('NETWORK NS', 'INTERFACE', 'TYPE', 'ADDRESSES', 'IPTABLES')
+    print "%-30s %14s %16s %7s %-34s %-30s" % ("TRACEPOINT",'NETWORK NS', 'INTERFACE', 'TYPE', 'ADDRESSES', 'IPTABLES')
 
     # Listen for event until the ping process has exited
     while ping.poll() is None:

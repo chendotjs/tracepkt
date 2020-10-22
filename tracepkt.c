@@ -127,12 +127,12 @@ static inline int do_trace_skb(struct route_evt_t *evt, void *ctx, struct sk_buf
         proto_icmp_echo_request = ICMPV6_ECHO_REQUEST;
         proto_icmp_echo_reply   = ICMPV6_ECHO_REPLY;
     } else {
-        return 0;
+        return -1;
     }
 
     // Filter ICMP packets
     if (l4proto != proto_icmp) {
-        return 0;
+        return -2;
     }
 
     // Compute ICMP header address and load ICMP header
@@ -142,7 +142,7 @@ static inline int do_trace_skb(struct route_evt_t *evt, void *ctx, struct sk_buf
 
     // Filter ICMP echo request and echo reply
     if (icmphdr.type != proto_icmp_echo_request && icmphdr.type != proto_icmp_echo_reply) {
-        return 0;
+        return -3;
     }
 
     // Get ICMP info
@@ -183,9 +183,12 @@ static inline int do_trace(void *ctx, struct sk_buff *skb, char *fnname)
 
     // Process packet
     int ret = do_trace_skb(&evt, ctx, skb);
+    if (ret == 0 )
+    {
+    	// Send event
+    	route_evt.perf_submit(ctx, &evt, sizeof(evt));
+    }
 
-    // Send event
-    route_evt.perf_submit(ctx, &evt, sizeof(evt));
 
     // Return
     return ret;
@@ -253,7 +256,11 @@ static inline int __ipt_do_table_out(struct pt_regs * ctx)
     strcpy(evt.funcname,"ipt_do_table");
     // Load packet information
     struct sk_buff *skb = args->skb;
-    do_trace_skb(&evt, ctx, skb);
+    int err = do_trace_skb(&evt, ctx, skb);
+    if(err != 0)
+    {
+   	return 0;
+    }
 
     // Store the hook
     const struct nf_hook_state *state = args->state;

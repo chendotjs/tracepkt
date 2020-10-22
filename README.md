@@ -34,6 +34,7 @@ therefore private.
 ## The full story
 
 This project started as an illustration for a blog post on perf and eBPF https://blog.yadutaf.fr/2017/07/28/tracing-a-packet-journey-using-linux-tracepoints-perf-ebpf/.
+[ 使用 Linux tracepoint、perf 和 eBPF 跟踪数据包 (2017)](http://arthurchiao.art/blog/trace-packet-with-tracepoint-perf-ebpf-zh/)
 
 ## Usage
 

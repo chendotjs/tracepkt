@@ -79,8 +79,8 @@ def event_printer(cpu, data, size):
         return
 
     # Make sure it is OUR ping process
-    if event.icmpid != PING_PID:
-        return
+    #if event.icmpid != PING_PID:
+    #    return
 
     # Decode address
     if event.ip_version == 4:
@@ -143,7 +143,7 @@ if __name__ == "__main__":
     print("%-30s %14s %16s %7s %-34s %-30s" % ("TRACEPOINT",'NETWORK NS', 'INTERFACE', 'TYPE', 'ADDRESSES', 'IPTABLES'))
 
     # Listen for event until the ping process has exited
-    while ping.poll() is None:
+    while True:
         b.kprobe_poll(10)
 
     # Forward ping's exit code

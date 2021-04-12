@@ -60,8 +60,6 @@ class TestEvt(ct.Structure):
         ("funcname",  ct.c_char * FUNNAMESIZ),
     ]
 
-PING_PID="-1"
-
 def _get(l, index, default):
     '''
     Get element at index in l or return the default
@@ -77,10 +75,6 @@ def event_printer(cpu, data, size):
     # Make sure this is an interface event
     if event.flags & ROUTE_EVT_IF != ROUTE_EVT_IF:
         return
-
-    # Make sure it is OUR ping process
-    #if event.icmpid != PING_PID:
-    #    return
 
     # Decode address
     if event.ip_version == 4:
@@ -106,45 +100,23 @@ def event_printer(cpu, data, size):
     # Optionally decode iptables events
     iptables = ""
     if event.flags & ROUTE_EVT_IPTABLE == ROUTE_EVT_IPTABLE:
-        verdict = _get(NF_VERDICT_NAME, event.verdict, "~UNK~")
-        hook = _get(HOOKNAMES, event.hook, "~UNK~")
+        verdict = _get(NF_VERDICT_NAME, event.verdict, "~UNKNOWN~")
+        hook = _get(HOOKNAMES, event.hook, "~UNKNOWN~")
         iptables = " %7s.%-12s:%s" % (event.tablename, hook, verdict)
 
     # Print event
     print("%-30s [%12s] %16s %7s %-34s%-30s" % (event.funcname,event.netns, event.ifname, direction, flow, iptables))
 
 if __name__ == "__main__":
-    # Get arguments
-    if len(sys.argv) == 1:
-        TARGET = '127.0.0.1'
-    elif len(sys.argv) == 2:
-        TARGET = sys.argv[1]
-    else:
-        print("Usage: %s [TARGET_IP]" % (sys.argv[0]))
-        sys.exit(1)
-
     # Build probe and open event buffer
     b = BPF(src_file='tracepkt.c')
     b["route_evt"].open_perf_buffer(event_printer)
-
-    # Launch a background ping process
-    with open('/dev/null', 'r') as devnull:
-        ping = subprocess.Popen([
-                '/bin/ping',
-                '-c1',
-                TARGET,
-            ],
-            stdout=devnull,
-            stderr=devnull,
-            close_fds=True,
-        )
-    PING_PID = ping.pid
 
     print("%-30s %14s %16s %7s %-34s %-30s" % ("TRACEPOINT",'NETWORK NS', 'INTERFACE', 'TYPE', 'ADDRESSES', 'IPTABLES'))
 
     # Listen for event until the ping process has exited
     while True:
-        b.kprobe_poll(10)
-
-    # Forward ping's exit code
-    sys.exit(ping.poll())
+        try:
+            b.perf_buffer_poll()
+        except KeyboardInterrupt:
+            exit()

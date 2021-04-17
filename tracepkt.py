@@ -33,32 +33,6 @@ HOOKNAMES = [
     "POSTROUTING",
 ]
 
-ROUTE_EVT_IF = 1
-ROUTE_EVT_IPTABLE = 2
-
-class TestEvt(ct.Structure):
-    _fields_ = [
-        # Content flags
-        ("flags",   ct.c_ulonglong),
-
-        # Routing information
-        ("ifname",  ct.c_char * IFNAMSIZ),
-        ("netns",   ct.c_ulonglong),
-
-        # Packet type (IPv4 or IPv6) and address
-        ("ip_version",  ct.c_ulonglong),
-        ("icmptype",    ct.c_ulonglong),
-        ("icmpid",      ct.c_ulonglong),
-        ("icmpseq",     ct.c_ulonglong),
-        ("saddr",       ct.c_ulonglong * 2),
-        ("daddr",       ct.c_ulonglong * 2),
-
-        # Iptables trace
-        ("hook",        ct.c_ulonglong),
-        ("verdict",     ct.c_ulonglong),
-        ("tablename",   ct.c_char * XT_TABLE_MAXNAMELEN),
-        ("funcname",  ct.c_char * FUNNAMESIZ),
-    ]
 
 def _get(l, index, default):
     '''
@@ -70,49 +44,32 @@ def _get(l, index, default):
 
 def event_printer(cpu, data, size):
     # Decode event
-    event = ct.cast(data, ct.POINTER(TestEvt)).contents
-
-    # Make sure this is an interface event
-    if event.flags & ROUTE_EVT_IF != ROUTE_EVT_IF:
-        return
+    event = b["ipt_events"].event(data)
 
     # Decode address
-    if event.ip_version == 4:
-        saddr = inet_ntop(AF_INET, pack("=I", event.saddr[0]))
-        daddr = inet_ntop(AF_INET, pack("=I", event.daddr[0]))
-    elif event.ip_version == 6:
-        saddr = inet_ntop(AF_INET6, event.saddr)
-        daddr = inet_ntop(AF_INET6, event.daddr)
-    else:
-        return
+    saddr = inet_ntop(AF_INET, pack("=I", event.saddr))
+    daddr = inet_ntop(AF_INET, pack("=I", event.daddr))
 
-    # Decode direction
-    if event.icmptype in [8, 128]:
-        direction = "request"
-    elif event.icmptype in [0, 129]:
-        direction = "reply"
-    else:
-        return
 
     # Decode flow
-    flow = "%s -> %s" % (saddr, daddr)
+    flow = "%s:%d -> %s:%d" % (saddr, event.sport, daddr, event.dport)
 
-    # Optionally decode iptables events
-    iptables = ""
-    if event.flags & ROUTE_EVT_IPTABLE == ROUTE_EVT_IPTABLE:
-        verdict = _get(NF_VERDICT_NAME, event.verdict, "~UNKNOWN~")
-        hook = _get(HOOKNAMES, event.hook, "~UNKNOWN~")
-        iptables = " %7s.%-12s:%s" % (event.tablename, hook, verdict)
+    verdict = _get(NF_VERDICT_NAME, event.verdict, "~UNKNOWN~")
+    hook = _get(HOOKNAMES, event.hook, "~UNKNOWN~")
+    # my x1 carbon has kcp2tun, just ignore
+    if event.sport == 3333 or event.dport == 3333:
+        return
 
     # Print event
-    print("%-30s [%12s] %16s %7s %-34s%-30s" % (event.funcname,event.netns, event.ifname, direction, flow, iptables))
+    print("%-30s [%12s] %-50s %-10s %-15s %-15s" %
+          (event.funcname, event.netns, flow, event.tablename, hook, verdict))
 
 if __name__ == "__main__":
     # Build probe and open event buffer
     b = BPF(src_file='tracepkt.c')
-    b["route_evt"].open_perf_buffer(event_printer)
+    b["ipt_events"].open_perf_buffer(event_printer)
 
-    print("%-30s %14s %16s %7s %-34s %-30s" % ("TRACEPOINT",'NETWORK NS', 'INTERFACE', 'TYPE', 'ADDRESSES', 'IPTABLES'))
+    print("%-30s [%12s] %-50s %-10s %-15s %-15s" % ("TRACEPOINT", 'NETWORK NS', 'ADDRESSES', 'TABLE', 'CHAIN', 'TARGET'))
 
     # Listen for event until the ping process has exited
     while True:
